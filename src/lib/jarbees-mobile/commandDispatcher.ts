@@ -98,6 +98,9 @@ export async function dispatchCommand(
     }
   }
 
+  const isPcTarget = intent.target_device === "pc" || /pc|compu|computadora|ordenador|windows/i.test(userCommand);
+  const isMobileTarget = intent.target_device === "mobile" || /celular|teléfono|telefono|móvil|movil|cel/i.test(userCommand);
+
   switch (intent.domain) {
     // 1. DISPOSITIVO & APPS
     case "device": {
@@ -115,6 +118,16 @@ export async function dispatchCommand(
 
       if (intent.action === "open_app") {
         const target = (intent.target || "app").toLowerCase();
+        
+        if (isPcTarget) {
+          sendMobileCommand("OPEN_APP", { target }, ctx, userCommand).catch(() => {});
+          return {
+            message: `💻 Abriendo aplicación "${target}" en tu PC...`,
+            success: true,
+            iconName: "Cpu",
+          };
+        }
+
         if (target.includes("camera") || target.includes("cámara") || target.includes("foto")) {
           return {
             message: "Abriendo cámara del dispositivo 📷",
@@ -163,35 +176,55 @@ export async function dispatchCommand(
       };
     }
 
-    // 2. AUDIO & VOLUMEN
+    // 2. AUDIO & VOLUMEN (MÓVIL VS PC)
     case "audio": {
       if (intent.action === "volume_down") {
         const delta = intent.amount || 20;
+        if (isPcTarget) {
+          sendMobileCommand("VOLUME_DOWN", { amount: delta }, ctx, userCommand).catch(() => {});
+          return { message: `💻 Volumen de la PC reducido 🔉`, success: true, iconName: "Volume1" };
+        }
         const newVol = Math.max(0, ctx.volume - delta);
         updateDeviceContext({ volume: newVol });
-        return { message: `Volumen reducido al ${newVol}% 🔉`, success: true, iconName: "Volume1" };
+        sendMobileCommand("VOLUME_DOWN", { amount: delta }, ctx, userCommand).catch(() => {});
+        return { message: `📱 Volumen de tu celular reducido al ${newVol}% 🔉`, success: true, iconName: "Volume1" };
       }
 
       if (intent.action === "volume_up") {
         const delta = intent.amount || 20;
+        if (isPcTarget) {
+          sendMobileCommand("VOLUME_UP", { amount: delta }, ctx, userCommand).catch(() => {});
+          return { message: `💻 Volumen de la PC aumentado 🔊`, success: true, iconName: "Volume2" };
+        }
         const newVol = Math.min(100, ctx.volume + delta);
         updateDeviceContext({ volume: newVol });
-        return { message: `Volumen aumentado al ${newVol}% 🔊`, success: true, iconName: "Volume2" };
+        sendMobileCommand("VOLUME_UP", { amount: delta }, ctx, userCommand).catch(() => {});
+        return { message: `📱 Volumen de tu celular aumentado al ${newVol}% 🔊`, success: true, iconName: "Volume2" };
       }
 
       if (intent.action === "set_volume") {
         const level = Math.min(100, Math.max(0, Number(intent.amount ?? intent.level ?? 50)));
+        if (isPcTarget) {
+          sendMobileCommand("VOLUME_UP", { amount: level }, ctx, userCommand).catch(() => {});
+          return { message: `💻 Volumen de la PC ajustado al ${level}% 🔊`, success: true, iconName: "Volume2" };
+        }
         updateDeviceContext({ volume: level });
-        return { message: `Volumen ajustado al ${level}% 🔊`, success: true, iconName: "Volume2" };
+        sendMobileCommand(level < ctx.volume ? "VOLUME_DOWN" : "VOLUME_UP", { amount: Math.abs(level - ctx.volume) }, ctx, userCommand).catch(() => {});
+        return { message: `📱 Volumen de tu celular ajustado al ${level}% 🔊`, success: true, iconName: "Volume2" };
       }
 
       if (intent.action === "set_mode" || intent.action === "mute") {
+        if (isPcTarget) {
+          sendMobileCommand("MUTE", {}, ctx, userCommand).catch(() => {});
+          return { message: "💻 Silencio activado en la PC 🔇", success: true, iconName: "VolumeX" };
+        }
         if (intent.mode === "silent" || intent.action === "mute") {
           updateDeviceContext({ volume: 0 });
-          return { message: "Modo silencio activado 🔇", success: true, iconName: "VolumeX" };
+          sendMobileCommand("MUTE", {}, ctx, userCommand).catch(() => {});
+          return { message: "📱 Modo silencio en celular activado 🔇", success: true, iconName: "VolumeX" };
         }
         if (intent.mode === "vibrate") {
-          return { message: "Modo vibración activado 📳", success: true, iconName: "Vibrate" };
+          return { message: "📱 Modo vibración activado 📳", success: true, iconName: "Vibrate" };
         }
         return { message: `Modo de sonido: ${intent.mode}`, success: true, iconName: "Volume2" };
       }
@@ -203,11 +236,21 @@ export async function dispatchCommand(
     case "media": {
       if (intent.action === "play") {
         updateDeviceContext({ music: "playing" });
+        if (isPcTarget) {
+          sendMobileCommand("MEDIA_PLAY", {}, ctx, userCommand).catch(() => {});
+          return { message: "💻 Reanudando multimedia en la PC 🎵", success: true, iconName: "Play" };
+        }
+        sendMobileCommand("MEDIA_PLAY", {}, ctx, userCommand).catch(() => {});
         const outputMsg = ctx.headphones ? "en auriculares 🎧" : "en altavoz 🔊";
         return { message: `Reproduciendo música ${outputMsg}`, success: true, iconName: "Play" };
       }
       if (intent.action === "pause" || intent.action === "stop") {
         updateDeviceContext({ music: "paused" });
+        if (isPcTarget) {
+          sendMobileCommand("MEDIA_PAUSE", {}, ctx, userCommand).catch(() => {});
+          return { message: "💻 Multimedia pausada en la PC ⏸️", success: true, iconName: "Pause" };
+        }
+        sendMobileCommand("MEDIA_PAUSE", {}, ctx, userCommand).catch(() => {});
         return { message: "Música pausada ⏸️", success: true, iconName: "Pause" };
       }
       if (intent.action === "next") {
@@ -223,7 +266,7 @@ export async function dispatchCommand(
     case "context": {
       if (intent.action === "device_status") {
         return {
-          message: "📱 Estado del dispositivo consultado",
+          message: "📱 Estado del teléfono consultado",
           success: true,
           iconName: "Smartphone",
           cardType: "status_report",
@@ -243,7 +286,7 @@ export async function dispatchCommand(
       if (intent.action === "battery_status") {
         const chargingStr = ctx.charging ? " (cargando ⚡)" : "";
         return {
-          message: `Batería al ${ctx.battery}%${chargingStr}`,
+          message: `Batería del teléfono al ${ctx.battery}%${chargingStr}`,
           success: true,
           iconName: "BatteryCharging",
         };
@@ -287,6 +330,14 @@ export async function dispatchCommand(
     // 5. CÁLCULOS DETERMINISTAS
     case "calculator": {
       const expr = intent.expression || userCommand;
+      if (isPcTarget) {
+        sendMobileCommand("OPEN_APP", { target: "calculator" }, ctx, userCommand).catch(() => {});
+        return {
+          message: "💻 Abriendo calculadora en tu PC 🧮",
+          success: true,
+          iconName: "Calculator",
+        };
+      }
       const calcResult = evaluateMathExpression(expr);
       return {
         message: `Resultado: ${calcResult.result} 🧮`,
@@ -301,12 +352,27 @@ export async function dispatchCommand(
       };
     }
 
-    // 6. TEMPORIZADORES REALES
+    // 6. TEMPORIZADORES (PARSEO EXACTO SIN 18 MINUTOS FIJOS)
     case "timer": {
       if (intent.action === "create_timer" || !intent.action) {
-        const mins = intent.duration_minutes || 1;
-        const secs = mins * 60;
-        const label = intent.label || `Temporizador ${mins}m`;
+        // Extraer minutos pedidos explícitamente por el usuario
+        const durationMatch = userCommand.match(/(\d+)\s*(?:minuto|minutos|min|m)/i) || userCommand.match(/(\d+)/);
+        const parsedMins = intent.duration_minutes && intent.duration_minutes !== 18
+          ? intent.duration_minutes
+          : (durationMatch ? parseInt(durationMatch[1], 10) : 5);
+
+        const secs = parsedMins * 60;
+        const label = intent.label || `Temporizador ${parsedMins}m`;
+
+        // Intentar abrir el reloj nativo en celulares Android si está disponible
+        if (typeof window !== "undefined" && typeof navigator !== "undefined" && /android/i.test(navigator.userAgent)) {
+          try {
+            window.location.href = `intent:#Intent;action=android.intent.action.SET_TIMER;i.EXTRA_LENGTH=${secs};S.android.intent.extra.alarm.MESSAGE=${encodeURIComponent(label)};end`;
+          } catch {
+            // Ignorar si el navegador bloquea la redirección del Intent
+          }
+        }
+
         const newTimer: ActiveTimer = {
           id: `timer-${Date.now()}`,
           label,
@@ -317,8 +383,9 @@ export async function dispatchCommand(
         };
         activeTimers.push(newTimer);
         notifyTimerListeners();
+
         return {
-          message: `Temporizador de ${mins} min creado ⏱️`,
+          message: `⏱️ Temporizador de ${parsedMins} minuto(s) configurado (${label})`,
           success: true,
           iconName: "Timer",
           cardType: "timer",
@@ -357,25 +424,27 @@ export async function dispatchCommand(
       const isOffline = intent.mode === "offline";
       return {
         message: isOffline
-          ? "Capacidades Locales (Sin Internet)"
-          : "Capacidades de JarBees Mobile",
+          ? "Lista de Acciones Permitidas (Modo Local)"
+          : "Lista de Acciones Permitidas (Móvil vs PC)",
         success: true,
         iconName: "Sparkles",
         cardType: "capabilities",
         cardData: {
           isOffline,
           capabilities: [
-            "📱 Aplicaciones (Cámara, Calculadora, Navegador, Ajustes)",
-            "🔊 Control de Audio y Volumen (Subir, Bajar, Silencio, Música)",
-            "⏱️ Temporizadores y Alarmas en tiempo real",
-            "🧮 Cálculos Matemáticos Deterministas",
-            "🔋 Estado del Dispositivo (Batería, Carga, Auriculares, Red)",
-            "📶 Consulta de Conectividad (WiFi, Bluetooth, Internet)",
-            "📍 Ubicación GPS actual",
-            "🕐 Hora y Fecha del sistema",
+            "📱 MÓVIL: Estado del Teléfono (Batería, Auriculares, Red, GPS)",
+            "🔊 MÓVIL: Control de Volumen y Silencio en el Teléfono",
+            "⏱️ MÓVIL: Temporizador con minutos personalizados (Abre el reloj)",
+            "📷 MÓVIL: Abre la cámara integrada y navegador web",
+            "🧮 MÓVIL: Abre la calculadora o resuelve cálculos deterministas",
           ],
           coreCapabilities: [
-            "🧠 JarBees Core (Consultas avanzadas, RAG, Trámites y Conocimiento)",
+            "💻 PC: Diagnóstico en tiempo real (CPU i7, RAM 32GB, Uptime)",
+            "🔊 PC: Subir/Bajar volumen máster de Windows (keybd_event)",
+            "🔇 PC: Silenciar/Activar sonido de la PC",
+            "🎵 PC: Reanudar/Pausar multimedia en la PC (Spotify, YouTube)",
+            "🚀 PC: Abrir Calculadora (`calc`), Bloc de notas (`notepad`), VS Code",
+            "🧠 PC: Consultas de conocimiento RAG e inteligencia",
           ],
         },
       };

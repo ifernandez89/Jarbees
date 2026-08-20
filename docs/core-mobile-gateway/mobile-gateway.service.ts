@@ -1,4 +1,3 @@
-// docs/core-mobile-gateway/mobile-gateway.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { exec } from 'child_process';
 import * as os from 'os';
@@ -7,6 +6,64 @@ import * as os from 'os';
 export class MobileGatewayService {
   private readonly logger = new Logger(MobileGatewayService.name);
 
+  /**
+   * Envía un evento de tecla virtual (VK) nativo de Windows utilizando keybd_event vía user32.dll.
+   * VK_VOLUME_MUTE = 0xAD (173)
+   * VK_VOLUME_DOWN = 0xAE (174)
+   * VK_VOLUME_UP   = 0xAF (175)
+   * VK_MEDIA_PLAY_PAUSE = 0xB3 (179)
+   */
+  private sendVirtualKey(vkCode: number, repeatCount: number = 1): void {
+    const psScript = `
+      $code = @"
+      using System;
+      using System.Runtime.InteropServices;
+      public class WinAudio {
+        [DllImport("user32.dll")]
+        public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, uint dwExtraInfo);
+      }
+"@
+      Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
+      1..${repeatCount} | ForEach-Object {
+        [WinAudio]::keybd_event(${vkCode}, 0, 0, 0)
+        [WinAudio]::keybd_event(${vkCode}, 0, 2, 0)
+        Start-Sleep -Milliseconds 30
+      }
+    `;
+    const base64 = Buffer.from(psScript, 'utf16le').toString('base64');
+    exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${base64}`);
+  }
+
+  /**
+   * Calcula el porcentaje de uso real de la CPU midiendo un delta de tiempo de 100ms.
+   */
+  private getCpuUsage(intervalMs: number = 100): Promise<number> {
+    return new Promise((resolve) => {
+      const startCpus = os.cpus();
+      setTimeout(() => {
+        const endCpus = os.cpus();
+        let totalIdle = 0;
+        let totalTick = 0;
+        for (let i = 0; i < startCpus.length; i++) {
+          const start = startCpus[i].times;
+          const end = endCpus[i].times;
+          const idle = end.idle - start.idle;
+          const total =
+            end.user -
+            start.user +
+            (end.nice - start.nice) +
+            (end.sys - start.sys) +
+            (end.idle - start.idle) +
+            (end.irq - start.irq);
+          totalIdle += idle;
+          totalTick += total;
+        }
+        const cpuPct = totalTick > 0 ? Math.round((1 - totalIdle / totalTick) * 100) : 0;
+        resolve(cpuPct);
+      }, intervalMs);
+    });
+  }
+
   getCapabilities() {
     return {
       success: true,
@@ -14,14 +71,15 @@ export class MobileGatewayService {
       environment: `JarBees Core Desktop (${os.type()} ${os.release()})`,
       capabilities: [
         { intent: 'GET_TIME', description: 'Obtiene la hora oficial de la PC' },
-        { intent: 'GET_SYSTEM_STATUS', description: 'Uso de CPU, RAM y servicios de la PC' },
+        { intent: 'GET_SYSTEM_STATUS', description: 'Uso en tiempo real de CPU, RAM y métricas del sistema' },
         { intent: 'CALCULATE', description: 'Evaluador matemático determinista' },
-        { intent: 'VOLUME_UP', description: 'Sube el volumen del sistema en la PC' },
-        { intent: 'VOLUME_DOWN', description: 'Baja el volumen del sistema en la PC' },
-        { intent: 'MEDIA_PLAY', description: 'Reanuda multimedia en la PC' },
-        { intent: 'MEDIA_PAUSE', description: 'Pausa multimedia en la PC' },
-        { intent: 'OPEN_APP', description: 'Abre aplicaciones autorizadas (Calculadora, Notepad, VS Code)' },
-        { intent: 'OPEN_BROWSER', description: 'Abre el navegador en la PC' },
+        { intent: 'VOLUME_UP', description: 'Sube el volumen máster del sistema en la PC' },
+        { intent: 'VOLUME_DOWN', description: 'Baja el volumen máster del sistema en la PC' },
+        { intent: 'MUTE', description: 'Silencia/activa el sonido de la PC' },
+        { intent: 'MEDIA_PLAY', description: 'Reanuda la reproducción multimedia en la PC' },
+        { intent: 'MEDIA_PAUSE', description: 'Pausa la reproducción multimedia en la PC' },
+        { intent: 'OPEN_APP', description: 'Abre aplicaciones autorizadas (Calculadora, Notepad, VS Code, Explorer)' },
+        { intent: 'OPEN_BROWSER', description: 'Abre el navegador predeterminado en la PC' },
         { intent: 'OPEN_URL', description: 'Abre una URL en la PC' },
       ],
     };
@@ -48,11 +106,13 @@ export class MobileGatewayService {
       }
 
       case 'GET_SYSTEM_STATUS': {
-        const totalMem = Math.round(os.totalmem() / (1024 * 1024 * 1024));
-        const freeMem = Math.round(os.freemem() / (1024 * 1024 * 1024));
-        const usedMem = totalMem - freeMem;
+        const cpuPct = await this.getCpuUsage(100);
+        const totalMemGb = parseFloat((os.totalmem() / (1024 * 1024 * 1024)).toFixed(1));
+        const freeMemGb = parseFloat((os.freemem() / (1024 * 1024 * 1024)).toFixed(1));
+        const usedMemGb = parseFloat((totalMemGb - freeMemGb).toFixed(1));
+        const ramUsagePct = Math.round((usedMemGb / totalMemGb) * 100);
         const cpus = os.cpus();
-        const uptimeHours = Math.round((os.uptime() / 3600) * 10) / 10;
+        const uptimeHours = parseFloat((os.uptime() / 3600).toFixed(1));
 
         return {
           requestId: dto.requestId,
@@ -61,14 +121,19 @@ export class MobileGatewayService {
           result: {
             hostname: os.hostname(),
             platform: os.platform(),
-            cpuModel: cpus[0]?.model || 'Desconocido',
+            arch: os.arch(),
+            cpuModel: cpus[0]?.model?.trim() || 'Desconocido',
             cpuCores: cpus.length,
-            ramTotalGb: totalMem,
-            ramUsedGb: usedMem,
-            ramUsagePct: `${Math.round((usedMem / totalMem) * 100)}%`,
+            cpuUsagePct: `${cpuPct}%`,
+            cpuUsageNum: cpuPct,
+            ramTotalGb: totalMemGb,
+            ramUsedGb: usedMemGb,
+            ramFreeGb: freeMemGb,
+            ramUsagePct: `${ramUsagePct}%`,
+            ramUsageNum: ramUsagePct,
             uptimeHours,
           },
-          message: `PC activa (${os.hostname()}): RAM al ${Math.round((usedMem / totalMem) * 100)}%, Uptime ${uptimeHours}h.`,
+          message: `PC ${os.hostname()} (${cpus[0]?.model?.trim() || 'Core'}): CPU al ${cpuPct}%, RAM ${usedMemGb}/${totalMemGb} GB (${ramUsagePct}%), Uptime ${uptimeHours}h.`,
         };
       }
 
@@ -97,7 +162,6 @@ export class MobileGatewayService {
 
       case 'OPEN_APP': {
         const app = String(params.target || params.app || '').toLowerCase();
-        // Whitelist estricta de aplicaciones para evitar ejecución arbitraria
         const ALLOWED_APPS: Record<string, string> = {
           calculator: 'calc',
           calc: 'calc',
@@ -146,6 +210,53 @@ export class MobileGatewayService {
           intent,
           result: {},
           message: 'URL inválida.',
+        };
+      }
+
+      case 'VOLUME_DOWN': {
+        const amount = Math.max(1, Math.min(10, Math.round((Number(params.amount) || 20) / 4)));
+        this.sendVirtualKey(0xae, amount); // 0xAE = VK_VOLUME_DOWN
+        return {
+          requestId: dto.requestId,
+          success: true,
+          intent,
+          result: { action: 'volume_down', amount },
+          message: `Volumen de la PC reducido (${amount} pasos).`,
+        };
+      }
+
+      case 'VOLUME_UP': {
+        const amount = Math.max(1, Math.min(10, Math.round((Number(params.amount) || 20) / 4)));
+        this.sendVirtualKey(0xaf, amount); // 0xAF = VK_VOLUME_UP
+        return {
+          requestId: dto.requestId,
+          success: true,
+          intent,
+          result: { action: 'volume_up', amount },
+          message: `Volumen de la PC aumentado (${amount} pasos).`,
+        };
+      }
+
+      case 'MUTE': {
+        this.sendVirtualKey(0xad, 1); // 0xAD = VK_VOLUME_MUTE
+        return {
+          requestId: dto.requestId,
+          success: true,
+          intent,
+          result: { action: 'mute' },
+          message: 'Silencio activado/desactivado en la PC.',
+        };
+      }
+
+      case 'MEDIA_PLAY':
+      case 'MEDIA_PAUSE': {
+        this.sendVirtualKey(0xb3, 1); // 0xB3 = VK_MEDIA_PLAY_PAUSE
+        return {
+          requestId: dto.requestId,
+          success: true,
+          intent,
+          result: { action: 'media_toggle' },
+          message: 'Control multimedia ejecutado en la PC.',
         };
       }
 
