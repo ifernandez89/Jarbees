@@ -10,11 +10,13 @@ try {
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
+const repoBasePath = isProduction ? '/Jarbees' : '';
 
 const nextConfig: NextConfig = {
-  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+  output: 'export',
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH ?? repoBasePath,
   env: {
-    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH || '',
+    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH ?? repoBasePath,
   },
   images: {
     unoptimized: true,
