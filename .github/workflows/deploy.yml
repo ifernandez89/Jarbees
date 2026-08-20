@@ -1,0 +1,70 @@
+name: Build & Deploy to gh-pages
+
+on:
+  push:
+    branches: [ main, develop ]
+  workflow_dispatch: {}
+
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+      NEXT_PUBLIC_MASTER_PASSWORD: ${{ secrets.NEXT_PUBLIC_MASTER_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+        env:
+          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          NEXT_PUBLIC_MASTER_PASSWORD: ${{ secrets.NEXT_PUBLIC_MASTER_PASSWORD }}
+
+      - name: Generate Workbox SW
+        run: npm run generate-workbox-sw || true
+
+      - name: Build (static export)
+        run: |
+          npm run build
+          cp out/index.html out/404.html || true
+          touch out/.nojekyll
+        env:
+          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
+          NEXT_PUBLIC_MASTER_PASSWORD: ${{ secrets.NEXT_PUBLIC_MASTER_PASSWORD }}
+
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
+
+      - name: Upload GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./out
+
+  deploy-to-pages:
+    needs: build-and-deploy
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

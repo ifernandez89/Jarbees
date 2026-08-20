@@ -1,0 +1,41 @@
+name: Build, Export & Lighthouse (manual)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-export-lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Generate Workbox SW
+        run: npm run generate-workbox-sw || true
+
+      - name: Build
+        run: npm run build
+
+      - name: Start production server
+        run: npm run start &
+
+      - name: Wait for server
+        run: npx wait-on http://localhost:3000
+
+      - name: Run Lighthouse (mobile emulation)
+        run: |
+          npx lighthouse http://localhost:3000 --chrome-flags="--no-sandbox" --preset=mobile --emulated-form-factor=mobile --throttling-method=simulate --output html --output-path=./lighthouse-report.html || true
+
+      - name: Upload Lighthouse report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: ./lighthouse-report.html

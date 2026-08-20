@@ -1,0 +1,106 @@
+{
+  "id": "/productos_crud_frd/",
+  "name": "JarBees - Asistente Conversacional IA",
+  "short_name": "JarBees",
+  "description": "Tu asistente conversacional con IA. Chat por voz o texto con capacidades de astronomía, calendarios, matemáticas y más.",
+  "start_url": "/productos_crud_frd/",
+  "scope": "/productos_crud_frd/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "/productos_crud_frd/icons/icon-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/productos_crud_frd/icons/icon-96x96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/productos_crud_frd/icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/productos_crud_frd/icons/icon-144x144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/productos_crud_frd/icons/icon-152x152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/productos_crud_frd/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/productos_crud_frd/icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/productos_crud_frd/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nuevo Chat",
+      "short_name": "Chat",
+      "description": "Iniciar una conversación nueva con JarBees",
+      "url": "/productos_crud_frd/preguntas/new",
+      "icons": [
+        {
+          "src": "/productos_crud_frd/icons/icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Astronomía",
+      "short_name": "Astro",
+      "description": "Consultas sobre luna, planetas, eclipses",
+      "url": "/productos_crud_frd/preguntas/new?q=astronomia",
+      "icons": [
+        {
+          "src": "/productos_crud_frd/icons/icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Matemáticas",
+      "short_name": "Mate",
+      "description": "Resolver derivadas, integrales y cálculos",
+      "url": "/productos_crud_frd/preguntas/new?q=matematicas",
+      "icons": [
+        {
+          "src": "/productos_crud_frd/icons/icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "categories": ["productivity", "education", "utilities"],
+  "lang": "es-AR",
+  "dir": "ltr"
+}
