@@ -1,6 +1,7 @@
 // src/lib/jarbees-mobile/commandDispatcher.ts
 import { Intent, RecentAction, ActiveTimer } from "./jarbeesMobile.types";
 import { updateDeviceContext, getDeviceContext } from "./deviceContext";
+import { sendMobileCommand } from "./services/mobileGateway.api";
 
 export interface DispatchResult {
   message: string;
@@ -99,7 +100,6 @@ export async function dispatchCommand(
   }
 
   const isPcTarget = intent.target_device === "pc" || /pc|compu|computadora|ordenador|windows/i.test(userCommand);
-  const isMobileTarget = intent.target_device === "mobile" || /celular|teléfono|telefono|móvil|movil|cel/i.test(userCommand);
 
   switch (intent.domain) {
     // 1. DISPOSITIVO & APPS
