@@ -1,117 +1,93 @@
-# Changelog
+# CHANGELOG - JarBees Mobile
 
-All notable changes to this project will be documented in this file.
+## [v1.0.0-experimental] - 2026-08-20
 
-The format is based on "Keep a Changelog" and uses Semantic Versioning.
-
-## [Unreleased]
-
-### Removed
-- **Botón "Mi Balance"**: Se eliminó el botón de acceso directo del header del chat, unificando la experiencia para usar únicamente el comando `/balance` (o `/balance`).
-
-### Fixed
-- **Estándar Arquitectónico de Conexión al Backend (`BASE_URL`)**: Restaurada la lógica directa y limpia `export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL; const BASE_URL = BACKEND_URL ?? "http://localhost:4000";` en todos los servicios de API (`preguntas.api.ts`, `jarbees.api.ts`, `balance.api.ts`, `products.api.ts`), unificando el consumo del Chatbot y del Lector.
-- **Corrección de Bloqueo CORS Preflight (`ngrok-skip-browser-warning`)**: Condicionada la cabecera `ngrok-skip-browser-warning` únicamente a llamadas que contengan `ngrok` en la URL. Esto evita que solicitudes locales a `http://localhost:4000` fallen durante el preflight OPTIONS de los navegadores.
-- **Redirección Nativa de Servidor (`HomePage`)**: Actualizado `src/app/page.tsx` para usar `redirect("/preguntas/new")` de Next.js en lugar de un `useEffect` del cliente, eliminando retardos y pantallas de carga al ingresar a la raíz.
-- **Redirección Alias `/lector`**: Creada la página `src/app/lector/page.tsx` que redirige instantáneamente a `/reader`, permitiendo ambas URLs de acceso a la biblioteca.
-- **Claves Únicas en Renderizado de Lista (`React Key Duplicate`)**: Corregido el atributo `key` en `src/app/reader/page.tsx` a `key={`book-${item.id || item.titulo || index}-${index}`}`, resolviendo las 22 advertencias de React por claves duplicadas.
-- **Reglas Persistentes de Agente (`.agents/AGENTS.md`)**: Creado el archivo de reglas de espacio de trabajo para garantizar la preservación inalterable del estándar de comunicación frontend-backend en el desarrollo futuro.
-
-### Added
-- **Módulo Lector de Audiolibros AI (`/reader`)**:
-  - Nueva página `/reader` con vista de biblioteca de libros y audiolibros, integrando consulta dinámica al backend (`getLibraryIndex()`) y buscador `🔎 Buscar` en tiempo real por título y autor.
-  - Reproductor de audio con soporte para el elemento nativo HTML `<audio>` que permite reproducción en segundo plano y con pantalla bloqueada en móviles.
-  - Controles completos de reproducción: Play, Pause, Stop, barra de progreso (`input range`) y selector de velocidad exclusivo (`0.75x`, `1x`, `1.25x`, `1.5x`, `2x`).
-  - Endpoint API `GET /api/reader/[documentId]` para extracción e integración por bloques de texto con modelo local de Ollama (`sematre/orpheus:it_es-3b`).
-  - Nuevo botón `🎧 Lector` integrado en el header del chat (`ChatInterfaceSimple`) para navegar directamente a la sección `/reader`.
-  - Integración estricta con los endpoints de audiolibros del backend NestJS (`/api/reader` y `/api/reader/:id`), garantizando la lectura secuencial ininterrumpida de todos los libros reales (hasta miles de bloques por obra).
-- **Autenticación JWT completa**:
-  - `auth.api.ts`: Servicio con `login()`, `verifyToken()`, `logout()`, `getToken()`, `storeToken()`, `buildAuthHeaders()`
-  - Token JWT con expiración de 30 días, guardado en `localStorage` bajo clave `jarbees_auth_token`
-  - Header `Authorization: Bearer <token>` en todas las peticiones al backend
-  - `AuthContext.tsx`: Proveedor global de estado de autenticación con `isAuthenticated`, `isLoading`, `login()`, `logout()`
-  - `AuthProvider` integrado en `layout.tsx` para disponibilidad en toda la app
-  - Página de login `/login` con formulario usuario/contraseña, manejo de errores y UX consistente con la identidad JarBees
-  - `ProtectedRoute.tsx`: Wrapper que redirige a `/login` si no hay sesión activa, con pantalla de carga mientras verifica el token
-  - Interceptor 401: cualquier petición que retorne `401 Unauthorized` hace logout automático y redirige al login
-  - Página `/preguntas/new` ahora protegida con `ProtectedRoute`
-- **Botón de logout en header del chat**: Ícono `LogOut` + "Salir" en el header del `ChatInterfaceSimple`, visible en desktop
-
-### Changed
-- `preguntas.api.ts`: Reemplazada la función `buildHeaders()` local por `buildAuthHeaders()` de `auth.api.ts`. Todos los llamados al backend ahora incluyen el JWT automáticamente
-- `preguntas.api.ts`: Eliminada variable `NEXT_PUBLIC_API_TOKEN` — el JWT reemplaza el token estático de entorno
-- `layout.tsx`: Removido el wrapper `<main className="container mx-auto pt-5">` que rompía el layout `h-screen` del chat. El contenido ahora ocupa toda la pantalla correctamente
-
-### Fixed
-- Import de `buildAuthHeaders` movido al tope del archivo `preguntas.api.ts` (ES modules no permiten imports en medio del código)
-
-- **UI minimalista estilo ChatGPT/Claude**: 
-  - Rediseño completo de la interfaz del chat
-  - Herramientas ocultas detrás del botón "+" (Imagen, Buscar Web, Documentos, Memoria, Herramientas)
-  - Mensajes compactos estilo burbujas con avatares pequeños
-  - Header simplificado con solo nombre y estado
-  - Input bar inferior con 3 botones principales: +, 🎤, ➤
-  - Reducción del 50%+ de ruido visual
-- **PWA completa configurada**: 
-  - Componente `InstallPWA` con prompt elegante de instalación
-  - Página `/offline` con reconexión automática cada 5 segundos
-  - Manifest.json completo con shortcuts (Nuevo Chat, Astronomía, Matemáticas)
-  - Soporte para iconos maskable (Android adaptativos)
-  - Documentación completa en `PWA_JARBEES.md` y `GENERATE_ICONS.md`
-- **Reconocimiento de voz continuo**: Implementado modo `continuous: true` en ambos componentes de chat para grabación sin cortes por silencio
-- **Voz masculina estilo JARVIS**: Sistema de selección automática de voces masculinas con parámetros optimizados (`pitch: 0.75`, `rate: 0.92`)
-- **Botón de detener audio**: Nuevo botón visible en el panel de historial para detener la reproducción de respuestas
-- **Auto-reinicio de reconocimiento de voz**: Reinicio automático cuando el navegador corta la sesión por razones internas
-- **Nuevos dominios de consulta**: Agregadas capacidades de astronomía (🌙 fase lunar, 🌅 amanecer/atardecer, 🪐 planetas, eclipses), calendarios (📅 Maya con kin, ✡️ Hebreo) y matemáticas (📐 derivadas, integrales, aritmética)
-- **Acciones rápidas expandidas**: 8 nuevos botones de acceso rápido a consultas frecuentes organizadas por categoría
-- **Preguntas frecuentes categorizadas**: Organizadas en 4 grupos (Astronomía, Calendarios, Matemáticas, Celulares) con iconos y headers
-
-### Changed
-- **Página principal redirige al chat**: La home (`/`) ahora redirige automáticamente a `/preguntas/new` para acceso directo al chat
-- **GitHub Actions workflows actualizados**: 
-  - Agregado `permissions: contents: write` para permitir push a `gh-pages`
-  - Actualizado Node.js de v18 a v20 para evitar deprecaciones
-  - Actualizado `peaceiris/actions-gh-pages` de v3 a v4
-  - Removido workflow duplicado `nextjs.yml` que causaba conflictos
-- **Next.js config para GitHub Pages**: 
-  - Agregado `basePath: '/productos_crud_frd'` para rutas correctas en GitHub Pages
-  - Agregado `assetPrefix: '/productos_crud_frd'` para carga correcta de CSS/JS
-  - Agregado `images: { unoptimized: true }` para compatibilidad con `output: 'export'`
-- **Manejo de errores de voz mejorado**: Errores "network", "aborted" y "no-speech" ya no rompen el flujo de reconocimiento
-- **UI del micrófono**: Textos actualizados para reflejar el nuevo comportamiento de grabación controlada por el usuario
-
-### Fixed
-- **Error 403 en GitHub Pages deploy**: Solucionado con permisos explícitos en workflow
-- **Bloqueo de archivos Git en Windows**: Limpieza automática de procesos Git colgados
-- **Reconocimiento de voz roto después de error de backend**: Implementado reinicio resiliente y manejo de errores no críticos
-- **Auto-envío no deseado del micrófono**: El micrófono ya no envía automáticamente; el usuario controla cuándo detener y enviar
-- **Error de optimización de imágenes en build estático**: Configurado `unoptimized: true` para exports estáticos
-- **Estilos no cargando en GitHub Pages**: Agregado `basePath` y `assetPrefix` para rutas correctas de assets
+### 🐝 Naturaleza y Origen del Proyecto
+- **Tipo de Proyecto**: **JarBees Mobile** — Asistente inteligente y controlador de dispositivo en el borde (*Edge AI Command Interpreter*), diseñado para ejecutarse localmente en dispositivos móviles (e.g. Android / Moto G5 Plus / APK con `llama.cpp` + GGUF).
+- **Origen**: Este proyecto fue separado y derivado del repositorio original (`jarbees front / products crud frd`) para evolucionar como una aplicación móvil experimental independiente centrada en el procesamiento local de lenguaje natural y ejecución determinista de acciones.
+- **Preservación de Vistas Legadas**: Todas las vistas y módulos originales de productos y preguntas (`/products`, `/preguntas/new`, `/reader`) se mantienen intactos en la base de código y permanecen accesibles por URL para futuras integraciones más amplias.
 
 ---
 
-## [0.1.0] - 2026-06-20
+### 🚀 Nuevas Capacidades Implementadas (V1 de JarBees Mobile)
 
-### Added
-- Initial JarBees rebranding and PWA basics (logo, manifest, icons).
-- Chat UI improvements: virtualization, IndexedDB persistence, streaming token updates (see components under `src/components/chat`).
+#### 1. 🧠 Intent & Command Engine (`Qwen2.5-0.5B-Instruct`)
+- Integración con el modelo local ultraligero (`zarigata/Qwen2.5-0.5B-Instruct:CRAZYMODE` / GGUF).
+- Salida estricta en formato JSON con validación, extracción por Regex y sanitización de dominios (`device`, `audio`, `media`, `context`, `calculator`, `timer`, `connectivity`, `location`, `capabilities`, `jarbees`, `handoff`).
+- Arquitectura desacoplada: El LLM propone la intención estructurada y el `Command Dispatcher` valida y ejecuta de forma determinista y segura en el dispositivo.
 
-### Changed
-- Switched service worker to Workbox-generated runtime caching for `/api/` (NetworkFirst) and images (CacheFirst).
+#### 2. 🎤 Entrada por Voz (Push-to-Talk y Tap-to-Talk)
+- Botón central `[ HABLAR ]` con captura vía Web Speech API / micrófono.
+- Detección de actividad de voz (*VAD de silencio ~1.4s*) para procesar automáticamente al terminar de hablar sin necesidad de un segundo toque.
 
-### Fixed
-- Resolved build/lint issues related to SW registration code and removed problematic `lighthouse` devDependency to allow local installs.
+#### 3. ⌨️ Entrada por Texto Directa
+- Botón y barra de entrada rápida `[ ESCRIBIR UN COMANDO ]` siempre disponible para pruebas y depuración del intérprete sin depender del micrófono.
+
+#### 4. 📱 Apertura de Aplicaciones
+- Ejecución de intenciones de aplicaciones nativas y web:
+  - `OPEN_CAMERA`: Abre la cámara del dispositivo con visor interactivo.
+  - `OPEN_CALCULATOR`: Inicia la interfaz de calculadora.
+  - `OPEN_BROWSER`: Abre el navegador web.
+  - `OPEN_SETTINGS`: Abre el panel de ajustes y configuración.
+
+#### 5. 🔊 Control de Audio y Reproducción de Medios
+- Acciones de volumen relativas y absolutas: `VOLUME_UP`, `VOLUME_DOWN`, `SET_VOLUME`, `MUTE`, `SILENT`, `VIBRATE`.
+- Control de música: `MEDIA_PLAY`, `MEDIA_PAUSE`, `MEDIA_NEXT`, `MEDIA_PREVIOUS`.
+- Interpretación contextual: Comandos ambiguos como *"Bajalo un poco"* infieren automáticamente control de volumen musical según el estado activo de reproducción.
+
+#### 6. 🔋 Consultas de Contexto del Teléfono (`DeviceContext`)
+- Respuestas precisas a consultas individuales sobre el estado del hardware:
+  - *"¿Cuánta batería tengo?"* → Nivel % y estado de carga.
+  - *"¿Estoy cargando?"* → Estado de conexión eléctrica.
+  - *"¿Tengo auriculares conectados?"* → Detección de salida de audio.
+  - *"¿Qué hora es?"* → Hora local del dispositivo.
+
+#### 7. 📊 Resumen Integral de "Estado del Dispositivo"
+- Comando *"JarBees, ¿cómo está mi teléfono?"* genera una tarjeta visual estructurada con:
+  - 🔋 Batería y estado de carga
+  - 🔊 Nivel de volumen
+  - 🎧 Conexión de auriculares
+  - 🎵 Estado de reproducción musical
+  - 📶 Estado de red (WiFi / Móvil / Offline)
+  - 📱 Estado de pantalla
+  - 🕐 Hora local
+
+#### 8. 🧮 Cálculos Matemáticos Deterministas
+- Interpretación de lenguaje natural hacia expresiones matemáticas estructuradas.
+- Evaluador seguro determinista para operaciones aritméticas y porcentajes:
+  - *"¿Cuánto es 1837 por 47?"* → `1837 * 47 = 86339`
+  - *"Calculá cuánto me queda si descuento 21% de 1837"* → `1837 - 21% = 1451.23`
+  - *"Si tengo 500 y gasto 137, ¿cuánto me queda?"* → `500 - 137 = 363`
+
+#### 9. ⏱️ Temporizadores en Tiempo Real
+- `CREATE_TIMER`, `CANCEL_TIMER`, `LIST_TIMERS`.
+- Widget activo en la pantalla principal con barra de progreso, cuenta regresiva en segundos y botón de cancelación rápida.
+
+#### 10. 📋 Descubrimiento de Capacidades (*Capability Discovery*)
+- *"¿Qué podés hacer?"* → Detalla todas las capacidades locales en el teléfono y aclara la derivación a JarBees Core para tareas complejas.
+- *"¿Qué puedo hacer sin Internet?"* → Enumera las funciones 100% locales y offline.
+
+#### 11. 📶 Consulta de Conectividad (Read-Only)
+- Consultas de estado: *"¿Estoy conectado a WiFi?"*, *"¿Tengo Internet?"*, *"¿Está activado Bluetooth?"*.
+
+#### 12. 📍 Consulta de Ubicación GPS (Read-Only)
+- *"¿Dónde estoy?"* → Obtiene y presenta coordenadas geográficas (Lat/Lon) mediante Geolocation API.
+
+#### 13. 🌐 Búsqueda en Navegador
+- *"Buscá perros en Internet"* → Construye la intención de búsqueda y abre el navegador con la consulta especificada.
+
+#### 14. 🛠️ Panel de Diagnóstico y Modo Desarrollador (`Settings / Dev`)
+- Telemetría en tiempo real: Latencia de inferencia en `ms`, confianza y visor del último Intent JSON.
+- Simulador interactivo de variables de contexto (deslizadores de batería y volumen, interruptores de auriculares y música).
+- Selector de proveedores: `ServerApiProvider` (Ollama/llama.cpp), `WebGpuLocalProvider` (On-Device WebGPU) y `RuleFallbackProvider` (Offline).
 
 ---
 
-How to use this file:
-- Add new entries under `Unreleased` for ongoing changes.
-- When releasing, move `Unreleased` entries into a new version heading like `## [0.1.1] - YYYY-MM-DD` and add a short summary.
-- Follow Semantic Versioning for version numbers (MAJOR.MINOR.PATCH).
-- Optionally include links to PRs/commit hashes for traceability.
-
-Example release steps:
-
-1. Update `CHANGELOG.md`: move entries from `Unreleased` to `## [X.Y.Z] - YYYY-MM-DD`.
-2. Commit and push changes.
-3. Tag the commit: `git tag -a vX.Y.Z -m "Release vX.Y.Z"` and push tags: `git push --follow-tags`.
+### 📦 Estructura de Nuevos Módulos
+- `src/lib/jarbees-mobile/jarbeesMobile.types.ts`: Tipado TypeScript para intenciones, contexto y diagnósticos.
+- `src/lib/jarbees-mobile/qwenInterpreter.ts`: Motor de interpretación con prompts few-shot y parser regex.
+- `src/lib/jarbees-mobile/commandDispatcher.ts`: Despachador determinista, evaluador matemático y temporizadores.
+- `src/lib/jarbees-mobile/deviceContext.ts`: Gestor reactivo de estado del dispositivo.
+- `src/lib/jarbees-mobile/providers/`: Capa de abstracción de proveedores (`serverProvider`, `fallbackProvider`, `index`).
+- `src/components/jarbees-mobile/`: Componentes UI Mobile-First (`JarBeesMobileApp`, `AudioOrbVisualizer`, `RecentActionsList`, `DiagnosticsDrawer`).
+- `src/app/api/jarbees/interpret/route.ts`: API Route proxy para inferencia local con Ollama / Qwen 0.5B.

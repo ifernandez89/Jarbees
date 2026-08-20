@@ -12,10 +12,9 @@ try {
 const isProduction = process.env.NODE_ENV === 'production';
 
 const nextConfig: NextConfig = {
-  output: 'export',
-  basePath: isProduction ? '/productos_crud_frd' : '',
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
   env: {
-    NEXT_PUBLIC_BASE_PATH: isProduction ? '/productos_crud_frd' : '',
+    NEXT_PUBLIC_BASE_PATH: process.env.NEXT_PUBLIC_BASE_PATH || '',
   },
   images: {
     unoptimized: true,
