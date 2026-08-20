@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { DiagnosticsInfo, DeviceContext } from "@/lib/jarbees-mobile/jarbeesMobile.types";
+import { DiagnosticsInfo, DeviceContext, CoreHealthStatus } from "@/lib/jarbees-mobile/jarbeesMobile.types";
 import { updateDeviceContext } from "@/lib/jarbees-mobile/deviceContext";
 import { getInterpreterProvider, WebGpuLocalProvider } from "@/lib/jarbees-mobile/providers";
 import {
@@ -20,6 +20,8 @@ import {
   Music,
   Download,
   CheckCircle2,
+  Wifi,
+  RefreshCw,
 } from "lucide-react";
 
 interface DiagnosticsDrawerProps {
@@ -27,7 +29,9 @@ interface DiagnosticsDrawerProps {
   onClose: () => void;
   diagnostics: DiagnosticsInfo;
   context: DeviceContext;
-  onProviderChange: (providerId: "server" | "webgpu" | "fallback") => void;
+  coreHealth: CoreHealthStatus;
+  onRefreshCoreHealth: () => void;
+  onProviderChange: (providerId: "server" | "webgpu" | "fallback" | "core") => void;
 }
 
 export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
@@ -35,6 +39,8 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
   onClose,
   diagnostics,
   context,
+  coreHealth,
+  onRefreshCoreHealth,
   onProviderChange,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -84,7 +90,44 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
         </div>
 
         <div className="mt-4 space-y-5 text-xs">
-          {/* 1. SELECCIÓN DE PROVEEDOR / MOTOR */}
+          {/* 1. ESTADO DE CONEXIÓN CON JARBEES CORE */}
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                <Wifi className="h-4 w-4 text-emerald-400" /> JarBees Core (PC en Casa)
+              </span>
+              <button
+                onClick={onRefreshCoreHealth}
+                className="flex items-center gap-1 text-[10px] text-cyan-400 hover:text-cyan-300"
+              >
+                <RefreshCw className="h-3 w-3" /> Reintentar Ping
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-2 rounded-lg bg-slate-950 border border-slate-850 font-mono text-[11px]">
+              <div className="truncate pr-2">
+                <span className="text-slate-500">URL: </span>
+                <span className="text-slate-300">{coreHealth.url}</span>
+              </div>
+              <span
+                className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                  coreHealth.online
+                    ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                    : "bg-rose-950/80 text-rose-300 border border-rose-800/80"
+                }`}
+              >
+                {coreHealth.online ? `${coreHealth.latencyMs}ms` : "OFFLINE"}
+              </span>
+            </div>
+
+            {!coreHealth.online && (
+              <p className="text-[10px] text-slate-400">
+                La PC está apagada o el túnel no está activo. Los comandos operan 100% en modo local.
+              </p>
+            )}
+          </div>
+
+          {/* 2. SELECCIÓN DE PROVEEDOR / MOTOR */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
@@ -95,10 +138,11 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 pt-1">
+            <div className="grid grid-cols-2 gap-1.5 pt-1">
               {[
                 { id: "server" as const, label: "Server (Ollama)" },
                 { id: "webgpu" as const, label: "WebGPU (HuggingFace)" },
+                { id: "core" as const, label: "Core Gateway (PC)" },
                 { id: "fallback" as const, label: "Rule Fallback" },
               ].map((p) => (
                 <button
@@ -156,7 +200,7 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
             )}
           </div>
 
-          {/* 2. TELEMETRÍA DE INFERENCIA */}
+          {/* 3. TELEMETRÍA DE INFERENCIA */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 flex flex-col justify-between">
               <span className="text-[11px] text-slate-400 flex items-center gap-1">
@@ -177,7 +221,7 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
             </div>
           </div>
 
-          {/* 3. CONTEXTO DE DISPOSITIVO INTERACTIVO (SIMULADOR) */}
+          {/* 4. CONTEXTO DE DISPOSITIVO INTERACTIVO (SIMULADOR) */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
@@ -260,7 +304,7 @@ export const DiagnosticsDrawer: React.FC<DiagnosticsDrawerProps> = ({
             </div>
           </div>
 
-          {/* 4. VISUALIZADOR DE ÚLTIMO INTENT (JSON) */}
+          {/* 5. VISUALIZADOR DE ÚLTIMO INTENT (JSON) */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-slate-300">Último Intent JSON</span>

@@ -17,8 +17,6 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,8 +28,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
-        env:
-          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
 
       - name: Generate Workbox SW
         run: npm run generate-workbox-sw || true
@@ -41,8 +37,6 @@ jobs:
           npm run build
           cp out/index.html out/404.html || true
           touch out/.nojekyll
-        env:
-          NEXT_PUBLIC_BACKEND_URL: ${{ secrets.NEXT_PUBLIC_BACKEND_URL }}
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4

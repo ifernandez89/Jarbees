@@ -1,5 +1,25 @@
 # CHANGELOG - JarBees Mobile
 
+## [v1.1.0-experimental] - 2026-08-20
+
+### 🌐 Mobile → Core Protocol (`MobileGateway V1`)
+- **Protocolo de Comunicación Mobile <-> Core**:
+  - Implementación del servicio `src/lib/jarbees-mobile/services/mobileGateway.api.ts` para enviar intenciones estructuradas al backend NestJS (`POST /api/mobile/v1/command` y `GET /api/mobile/v1/capabilities`).
+  - Respeto estricto de las reglas de workspace (`AGENTS.md`): Resolución de base URL mediante `NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:4000"` y política de header `"ngrok-skip-browser-warning": "69420"` solo en URLs que contienen `ngrok`.
+  - Conexión directa abierta sin tokens para paridad con el frontend existente.
+- **Detección de Estado de la PC en Tiempo Real (`CoreHealthStatus`)**:
+  - Health check periódico (cada 20s) y manual hacia `GET /api/mobile/v1/health`.
+  - Badge interactivo en la cabecera móvil: `🟢 Core 42ms` / `🔴 Core Offline` con reintento instantáneo.
+- **CoreHandoffProvider**:
+  - Nuevo proveedor de inferencia que delega comandos al backend Core cuando el usuario lo selecciona o cuando un comando requiere herramientas de la PC (`OPEN_APP`, `CALCULATE`, `GET_SYSTEM_STATUS`).
+  - Fallback automático y transparente al motor local si la PC en casa está apagada.
+- **Arquitectura de Referencia para NestJS Core**:
+  - Módulo completo disponible en `docs/core-mobile-gateway/` (`mobile-gateway.controller.ts`, `mobile-gateway.service.ts`, `mobile-gateway.module.ts`, `README_CORE_SETUP.md`) listo para incorporar al Core de casa al encender la PC.
+- **Corrección de GitHub Pages Deploy**:
+  - Eliminada inyección de variables sensibles en `deploy.yml` que provocaba falsos positivos en el escáner de seguridad de GitHub.
+
+---
+
 ## [v1.0.0-experimental] - 2026-08-20
 
 ### 🐝 Naturaleza y Origen del Proyecto
@@ -11,9 +31,9 @@
 
 ### 🚀 Nuevas Capacidades Implementadas (V1 de JarBees Mobile)
 
-#### 1. 🧠 Intent & Command Engine (`Qwen2.5-0.5B-Instruct`)
-- Integración con el modelo local ultraligero (`zarigata/Qwen2.5-0.5B-Instruct:CRAZYMODE` / GGUF).
-- Salida estricta en formato JSON con validación, extracción por Regex y sanitización de dominios (`device`, `audio`, `media`, `context`, `calculator`, `timer`, `connectivity`, `location`, `capabilities`, `jarbees`, `handoff`).
+#### 1. 🧠 Intent & Command Engine (`Qwen2.5-0.5B-Instruct` & Transformers.js WebGPU)
+- Integración con el modelo local ultraligero (`zarigata/Qwen2.5-0.5B-Instruct:CRAZYMODE` / GGUF) y `@huggingface/transformers` con `onnx-community/Qwen2.5-0.5B-Instruct` (Q4 ONNX) en el navegador.
+- Salida estricta en formato JSON con validación, extracción por Regex y sanitización de dominios (`device`, `audio`, `media`, `context`, `calculator`, `timer`, `connectivity`, `location`, `capabilities`, `jarbees`, `handoff`, `core`).
 - Arquitectura desacoplada: El LLM propone la intención estructurada y el `Command Dispatcher` valida y ejecuta de forma determinista y segura en el dispositivo.
 
 #### 2. 🎤 Entrada por Voz (Push-to-Talk y Tap-to-Talk)
@@ -60,34 +80,31 @@
   - *"Si tengo 500 y gasto 137, ¿cuánto me queda?"* → `500 - 137 = 363`
 
 #### 9. ⏱️ Temporizadores en Tiempo Real
-- `CREATE_TIMER`, `CANCEL_TIMER`, `LIST_TIMERS`.
-- Widget activo en la pantalla principal con barra de progreso, cuenta regresiva en segundos y botón de cancelación rápida.
+- Creación, listado y cancelación de temporizadores:
+  - *"Poneme un temporizador de 18 minutos"* → Crea temporizador activo con widget y cuenta regresiva en segundos.
+  - *"Cancelá los temporizadores"* → Limpieza de temporizadores activos.
 
-#### 10. 📋 Descubrimiento de Capacidades (*Capability Discovery*)
-- *"¿Qué podés hacer?"* → Detalla todas las capacidades locales en el teléfono y aclara la derivación a JarBees Core para tareas complejas.
-- *"¿Qué puedo hacer sin Internet?"* → Enumera las funciones 100% locales y offline.
+#### 10. 📋 Capability Discovery
+- Comando *"¿Qué podés hacer?"* o *"¿Qué puedo hacer sin Internet?"* genera tarjetas interactivas clasificando capacidades locales vs. remotas.
 
-#### 11. 📶 Consulta de Conectividad (Read-Only)
-- Consultas de estado: *"¿Estoy conectado a WiFi?"*, *"¿Tengo Internet?"*, *"¿Está activado Bluetooth?"*.
+#### 11. 📶 Conectividad y Red
+- Consultas sobre estado de WiFi, Bluetooth e Internet.
 
-#### 12. 📍 Consulta de Ubicación GPS (Read-Only)
-- *"¿Dónde estoy?"* → Obtiene y presenta coordenadas geográficas (Lat/Lon) mediante Geolocation API.
+#### 12. 📍 Ubicación y GPS
+- Consulta *"¿Dónde estoy?"* lee coordenadas reales del dispositivo.
 
-#### 13. 🌐 Búsqueda en Navegador
-- *"Buscá perros en Internet"* → Construye la intención de búsqueda y abre el navegador con la consulta especificada.
+#### 13. 📷 Integración con Cámara
+- Lanzamiento de visor de cámara con acceso a `getUserMedia`.
 
-#### 14. 🛠️ Panel de Diagnóstico y Modo Desarrollador (`Settings / Dev`)
-- Telemetría en tiempo real: Latencia de inferencia en `ms`, confianza y visor del último Intent JSON.
-- Simulador interactivo de variables de contexto (deslizadores de batería y volumen, interruptores de auriculares y música).
-- Selector de proveedores: `ServerApiProvider` (Ollama/llama.cpp), `WebGpuLocalProvider` (On-Device WebGPU) y `RuleFallbackProvider` (Offline).
+#### 14. 🌐 Búsqueda Web Asistida
+- *"Buscá perros en Internet"* abre el navegador con la consulta construida.
 
----
+#### 15. 🔐 Sistema de Confirmaciones y Seguridad
+- Diferenciación entre acciones inmediatas seguras y acciones con confirmación requerida.
 
-### 📦 Estructura de Nuevos Módulos
-- `src/lib/jarbees-mobile/jarbeesMobile.types.ts`: Tipado TypeScript para intenciones, contexto y diagnósticos.
-- `src/lib/jarbees-mobile/qwenInterpreter.ts`: Motor de interpretación con prompts few-shot y parser regex.
-- `src/lib/jarbees-mobile/commandDispatcher.ts`: Despachador determinista, evaluador matemático y temporizadores.
-- `src/lib/jarbees-mobile/deviceContext.ts`: Gestor reactivo de estado del dispositivo.
-- `src/lib/jarbees-mobile/providers/`: Capa de abstracción de proveedores (`serverProvider`, `fallbackProvider`, `index`).
-- `src/components/jarbees-mobile/`: Componentes UI Mobile-First (`JarBeesMobileApp`, `AudioOrbVisualizer`, `RecentActionsList`, `DiagnosticsDrawer`).
-- `src/app/api/jarbees/interpret/route.ts`: API Route proxy para inferencia local con Ollama / Qwen 0.5B.
+#### 16. 🛠️ Developer Mode & Live Context Simulator
+- Drawer lateral completo con:
+  - Selector de motores (`Server`, `WebGPU`, `Core Gateway`, `Rule Fallback`).
+  - Telemetría en vivo (latencia en `ms`, confianza del modelo).
+  - Simulador de estado de hardware (sliders de batería, volumen, toggles de auriculares y música).
+  - Inspector y copiado rápido de JSON estructurado generado por el LLM.

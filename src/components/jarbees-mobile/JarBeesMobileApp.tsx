@@ -8,6 +8,7 @@ import {
   DiagnosticsInfo,
   RecentAction,
   ActiveTimer,
+  CoreHealthStatus,
 } from "@/lib/jarbees-mobile/jarbeesMobile.types";
 import {
   getDeviceContext,
@@ -20,6 +21,7 @@ import {
   createRecentAction,
   subscribeTimers,
 } from "@/lib/jarbees-mobile/commandDispatcher";
+import { checkCoreHealth, getEffectiveCoreUrl, sendMobileCommand } from "@/lib/jarbees-mobile/services/mobileGateway.api";
 import { AudioOrbVisualizer } from "./AudioOrbVisualizer";
 import { RecentActionsList } from "./RecentActionsList";
 import { DiagnosticsDrawer } from "./DiagnosticsDrawer";
@@ -36,6 +38,8 @@ import {
   Camera,
   Timer as TimerIcon,
   Trash2,
+  Cpu,
+  RefreshCw,
 } from "lucide-react";
 
 interface SpeechRecognitionInstance {
@@ -76,8 +80,16 @@ export default function JarBeesMobileApp() {
   const [ttsEnabled, setTtsEnabled] = useState<boolean>(true);
   const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
 
-  // Proveedor activo
-  const [providerId, setProviderId] = useState<"server" | "webgpu" | "fallback">("server");
+  // Estado de conexión con JarBees Core (PC en casa)
+  const [coreHealth, setCoreHealth] = useState<CoreHealthStatus>({
+    online: false,
+    latencyMs: 0,
+    url: getEffectiveCoreUrl(),
+  });
+  const [isCheckingCore, setIsCheckingCore] = useState<boolean>(false);
+
+  // Proveedor activo: server | webgpu | fallback | core
+  const [providerId, setProviderId] = useState<"server" | "webgpu" | "fallback" | "core">("server");
 
   // Diagnóstico
   const [diagnostics, setDiagnostics] = useState<DiagnosticsInfo>({
@@ -95,7 +107,14 @@ export default function JarBeesMobileApp() {
   const isListeningRef = useRef<boolean>(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Inicializar telemetría de dispositivo y suscripción a temporizadores
+  const performCoreHealthCheck = useCallback(async () => {
+    setIsCheckingCore(true);
+    const health = await checkCoreHealth();
+    setCoreHealth(health);
+    setIsCheckingCore(false);
+  }, []);
+
+  // Inicializar telemetría de dispositivo, temporizadores y health check del Core
   useEffect(() => {
     initBrowserTelemetry();
     const unsubContext = subscribeDeviceContext((newCtx) => {
@@ -105,11 +124,16 @@ export default function JarBeesMobileApp() {
     const unsubTimers = subscribeTimers((timers) => {
       setActiveTimers(timers);
     });
+
+    performCoreHealthCheck();
+    const coreInterval = setInterval(performCoreHealthCheck, 20000);
+
     return () => {
       unsubContext();
       unsubTimers();
+      clearInterval(coreInterval);
     };
-  }, []);
+  }, [performCoreHealthCheck]);
 
   // Timer countdown ticker
   useEffect(() => {
@@ -135,7 +159,7 @@ export default function JarBeesMobileApp() {
           if (videoRef.current) videoRef.current.srcObject = s;
         })
         .catch(() => {
-          // Si no hay permiso o cámara, se muestra simulación
+          // Fallback silencioso si no hay cámara
         });
     }
     return () => {
@@ -143,13 +167,13 @@ export default function JarBeesMobileApp() {
     };
   }, [isCameraOpen]);
 
-  // Procesamiento con Qwen 0.5B a través del Provider
+  // Procesamiento con Qwen 0.5B / Core Gateway
   const handleProcessCommand = useCallback(
     async (command: string) => {
       if (!command.trim()) return;
 
       setState("processing");
-      setStatusMessage("JarBees piensa...");
+      setStatusMessage(providerId === "core" ? "Enviando a PC Core..." : "JarBees piensa...");
       setActiveSubtext(`Interpretando: "${command}"`);
       setDiagnostics((prev) => ({ ...prev, status: "inferring" }));
 
@@ -162,7 +186,9 @@ export default function JarBeesMobileApp() {
         // Despacho del Intent estructurado
         setState("executing");
         setStatusMessage(
-          result.intent.domain === "device"
+          result.intent.domain === "core"
+            ? "PC Core ejecutando..."
+            : result.intent.domain === "device"
             ? "Ejecutando acción..."
             : result.intent.domain === "calculator"
             ? "Calculando..."
@@ -174,7 +200,12 @@ export default function JarBeesMobileApp() {
         );
 
         const dispatchRes = await dispatchCommand(result.intent, command, async (query) => {
-          return `JarBees Core analizó: "${query}". Respuesta generada con éxito.`;
+          // Handoff hacia JarBees Core vía MobileGateway
+          const coreRes = await sendMobileCommand("QUERY", { query }, currentCtx, command);
+          if (coreRes.success) {
+            return `PC Core respondió: ${coreRes.message || "OK"}`;
+          }
+          return `PC Core Offline (${coreRes.message}). Operando en modo local.`;
         });
 
         if (dispatchRes.cardType === "camera") {
@@ -236,7 +267,7 @@ export default function JarBeesMobileApp() {
     }
   }, []);
 
-  // Inicializar Web Speech Recognition si está disponible
+  // Inicializar Web Speech Recognition
   useEffect(() => {
     if (typeof window !== "undefined") {
       const windowWithSpeech = window as unknown as {
@@ -326,8 +357,8 @@ export default function JarBeesMobileApp() {
 
   return (
     <main className="flex min-h-screen flex-col justify-between bg-slate-950 text-slate-100 selection:bg-cyan-500/30">
-      {/* 1. TOP BAR / TELEMETRÍA DISCRETA */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-900/80 bg-slate-950/80 px-4 py-3 backdrop-blur-md">
+      {/* 1. TOP BAR / TELEMETRÍA DISCRETA Y ESTADO CORE */}
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-900/80 bg-slate-950/80 px-4 py-2.5 backdrop-blur-md">
         {/* Marca */}
         <div className="flex items-center gap-2">
           <span className="text-xl">🐝</span>
@@ -335,13 +366,28 @@ export default function JarBeesMobileApp() {
             <h1 className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
               JarBees <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-950 px-1.5 py-0.2 rounded border border-cyan-800">MOBILE</span>
             </h1>
-            <p className="text-[9px] text-slate-400 font-mono">Qwen2.5 0.5B Edge Assistant</p>
+            <p className="text-[9px] text-slate-400 font-mono">Edge Assistant & Core Bridge</p>
           </div>
         </div>
 
-        {/* Indicadores de Dispositivo + Developer Gear */}
-        <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+        {/* Indicadores de Dispositivo + Core Status + Developer Gear */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Badge de Conexión con JarBees Core (PC en casa) */}
+          <button
+            onClick={performCoreHealthCheck}
+            title={coreHealth.online ? `PC Core Conectada (${coreHealth.latencyMs}ms)` : "PC en casa offline - Operando en modo local"}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-mono font-semibold border transition-all ${
+              coreHealth.online
+                ? "border-emerald-500/50 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/50"
+                : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700"
+            }`}
+          >
+            <Cpu className="h-3 w-3" />
+            <span>{isCheckingCore ? "Verificando..." : coreHealth.online ? `Core ${coreHealth.latencyMs}ms` : "Core Offline"}</span>
+            <RefreshCw className={`h-2.5 w-2.5 text-slate-500 ${isCheckingCore ? "animate-spin text-cyan-400" : ""}`} />
+          </button>
+
+          <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-400 font-mono">
             <span className="flex items-center gap-1">
               <Battery className="h-3 w-3 text-emerald-400" /> {context.battery}%
             </span>
@@ -357,7 +403,7 @@ export default function JarBeesMobileApp() {
 
           <button
             onClick={() => setTtsEnabled(!ttsEnabled)}
-            className="rounded-lg border border-slate-800 bg-slate-900 p-2 text-slate-400 hover:text-white transition-colors"
+            className="rounded-lg border border-slate-800 bg-slate-900 p-1.5 text-slate-400 hover:text-white transition-colors"
             title={ttsEnabled ? "Voz activada" : "Voz silenciada"}
           >
             {ttsEnabled ? <Volume2 className="h-4 w-4 text-cyan-400" /> : <VolumeX className="h-4 w-4 text-slate-600" />}
@@ -368,7 +414,7 @@ export default function JarBeesMobileApp() {
             className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:border-cyan-500/50 hover:bg-slate-850 hover:text-cyan-300 transition-all shadow-sm"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="text-[11px]">Settings</span>
+            <span className="text-[11px] hidden sm:inline">Settings</span>
           </button>
         </div>
       </header>
@@ -560,6 +606,8 @@ export default function JarBeesMobileApp() {
         onClose={() => setIsDrawerOpen(false)}
         diagnostics={diagnostics}
         context={context}
+        coreHealth={coreHealth}
+        onRefreshCoreHealth={performCoreHealthCheck}
         onProviderChange={(p) => setProviderId(p)}
       />
     </main>

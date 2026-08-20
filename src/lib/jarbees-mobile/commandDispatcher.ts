@@ -6,7 +6,7 @@ export interface DispatchResult {
   message: string;
   success: boolean;
   iconName: string;
-  cardType?: "status_report" | "calculation" | "timer" | "capabilities" | "location" | "camera";
+  cardType?: "status_report" | "calculation" | "timer" | "capabilities" | "location" | "camera" | "core_response";
   cardData?: Record<string, unknown>;
   handoffPayload?: Record<string, unknown>;
 }
@@ -450,7 +450,22 @@ export async function dispatchCommand(
       return { message: "JarBees listo.", success: true, iconName: "Sparkles" };
     }
 
-    // 11. HANDOFF A JARBEES CORE
+    // 11. RESPUESTAS DESDE JARBEES CORE GATEWAY
+    case "core": {
+      const msg = (intent.message as string) || (intent.resultMessage as string) || "Comando ejecutado en JarBees Core.";
+      return {
+        message: `🖥️ PC Core: ${msg}`,
+        success: true,
+        iconName: "Cpu",
+        cardType: "core_response",
+        cardData: {
+          intent: intent.action || intent.intent,
+          ...intent,
+        },
+      };
+    }
+
+    // 12. HANDOFF A JARBEES CORE
     case "handoff":
     default: {
       const queryText = intent.query || userCommand;

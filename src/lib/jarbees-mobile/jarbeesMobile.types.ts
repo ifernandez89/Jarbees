@@ -11,7 +11,8 @@ export type AssistantDomain =
   | "location"
   | "capabilities"
   | "jarbees"
-  | "handoff";
+  | "handoff"
+  | "core";
 
 export type AssistantState =
   | "idle"        // Dormido / Disponible
@@ -68,12 +69,12 @@ export interface RecentAction {
   resultMessage: string;
   success: boolean;
   iconName?: string;
-  cardType?: "status_report" | "calculation" | "timer" | "capabilities" | "location" | "camera";
+  cardType?: "status_report" | "calculation" | "timer" | "capabilities" | "location" | "camera" | "core_response";
   cardData?: Record<string, unknown>;
 }
 
 export interface DiagnosticsInfo {
-  providerId: "server" | "webgpu" | "fallback";
+  providerId: "server" | "webgpu" | "fallback" | "core";
   modelName: string;
   status: "idle" | "inferring" | "ready" | "error";
   latencyMs: number;
@@ -95,4 +96,54 @@ export interface IInterpreterProvider {
   id: string;
   name: string;
   interpret(command: string, context: DeviceContext): Promise<InterpreterResult>;
+}
+
+// ----------------------------------------------------
+// MOBILE GATEWAY PROTOCOL (Mobile <-> Core)
+// ----------------------------------------------------
+export interface MobileCommandRequest {
+  requestId: string;
+  deviceId: string;
+  timestamp: string;
+  intent: string;
+  parameters: Record<string, unknown>;
+  context: {
+    source: "mobile" | "pwa" | "apk";
+    network?: string;
+    battery?: number;
+    userCommand?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface MobileCommandResponse {
+  requestId: string;
+  success: boolean;
+  intent: string;
+  result: Record<string, unknown>;
+  message: string;
+  latencyMs?: number;
+  timestamp?: string;
+}
+
+export interface CoreCapabilityItem {
+  intent: string;
+  description: string;
+  category?: "system" | "media" | "tools" | "ai";
+}
+
+export interface CoreCapabilitiesResponse {
+  success: boolean;
+  version: string;
+  environment: string;
+  capabilities: CoreCapabilityItem[];
+}
+
+export interface CoreHealthStatus {
+  online: boolean;
+  latencyMs: number;
+  url: string;
+  timestamp?: number;
+  version?: string;
+  error?: string;
 }
