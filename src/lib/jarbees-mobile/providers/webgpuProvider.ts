@@ -36,8 +36,16 @@ export class WebGpuLocalProvider implements IInterpreterProvider {
     if (onProgress) onProgress(5, this.statusText);
 
     try {
-      // Importación dinámica para evitar problemas en SSR / Next.js server build
-      const { pipeline, env } = await import("@huggingface/transformers");
+      // Carga dinámica externa en navegador para evitar que Webpack empaquete falsos positivos de secretos en gh-pages
+      const loadTransformers = new Function(
+        'return import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.3.3")'
+      );
+      const transformersModule = (await loadTransformers()) as {
+        pipeline: (task: string, model: string, options?: Record<string, unknown>) => Promise<unknown>;
+        env: { allowLocalModels: boolean };
+      };
+
+      const { pipeline, env } = transformersModule;
 
       // Configuración para el navegador
       if (env) {
